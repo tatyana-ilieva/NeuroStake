@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract NeuroDataStaking {
+    struct StakedData {
+        bytes eegData;
+        string hash;
+        uint256 amountStaked;
+        uint256 reward;
+        bool isStaked;
+    }
+
+    mapping(address => StakedData) public stakedData;
+    mapping(address => uint256) public balances;
+
+    event DataStaked(address indexed user, string hash, uint256 amount);
+    event RewardClaimed(address indexed user, uint256 reward);
+    event DataUnstaked(address indexed user);
+
+    function stakeData(bytes memory _data, string memory _hash) public payable {
+        require(msg.value > 0, "Must stake some ETH");
+        require(!stakedData[msg.sender].isStaked, "Data already staked");
+
+        stakedData[msg.sender] = StakedData({
+            eegData: _data,
+            hash: _hash,
+            amountStaked: msg.value,
+            reward: 0,
+            isStaked: true
+        });
+
+        emit DataStaked(msg.sender, _hash, msg.value);
+    }
+
+    function distributeRewards(address[] memory _users, uint256[] memory _rewards) public {
+        require(_users.length == _rewards.length, "Mismatched arrays");
+
+        for (uint256 i = 0; i < _users.length; i++) {
+            require(stakedData[_users[i]].isStaked, "User has no staked data");
+            stakedData[_users[i]].reward += _rewards[i];
+        }
+    }
+
+    function claimReward() public {
+        uint256 reward = stakedData[msg.sender].reward;
+        require(reward > 0, "No rewards to claim");
+
+        stakedData[msg.sender].reward = 0;
+        balances[msg.sender] += reward;
+
+        emit RewardClaimed(msg.sender, reward);
+    }
+
+    function unstakeData() public {
+        require(stakedData[msg.sender].isStaked, "No data staked");
+
+        uint256 amountStaked = stakedData[msg.sender].amountStaked;
+        delete stakedData[msg.sender];
+
+        payable(msg.sender).transfer(amountStaked);
+        emit DataUnstaked(msg.sender);
+    }
+
+    function withdrawBalance() public {
+        uint256 balance = balances[msg.sender];
+        require(balance > 0, "No balance to withdraw");
+
+        balances[msg.sender] = 0;
+        payable(msg.sender).transfer(balance);
+    }
+
+    receive() external payable {}
+}
