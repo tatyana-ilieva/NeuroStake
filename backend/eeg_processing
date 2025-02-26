@@ -1,0 +1,78 @@
+import hashlib
+import json
+import numpy as np
+import struct
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+
+# Step 1: Load EEG data from binary file
+def load_eeg_data(bin_file_path):
+    """ Load EEG data from a .bin file (assumed to be 32-bit float) """
+    with open(bin_file_path, 'rb') as f:
+        eeg_data = np.fromfile(f, dtype=np.float32)  # Assuming 32-bit float EEG data
+    return eeg_data
+
+# Step 2: Extract relevant waveforms (for example, Gamma, Alpha, Beta waves)
+def extract_waves(eeg_data):
+    """ Example: Extract different frequency bands, such as Gamma, Alpha, Beta """
+    # Here we simply simulate extracting parts of the data. You may use specific algorithms.
+    # For example, this could be implemented with an FFT or band-pass filter.
+    
+    # This is a placeholder: Split data into 3 parts for Gamma, Alpha, Beta
+    num_samples = len(eeg_data)
+    gamma = eeg_data[:num_samples//3]
+    alpha = eeg_data[num_samples//3:num_samples//3*2]
+    beta = eeg_data[num_samples//3*2:]
+
+    return {"gamma": gamma.tolist(), "alpha": alpha.tolist(), "beta": beta.tolist()}
+
+# Step 3: Generate SHA-256 hash for the EEG data (security feature)
+def generate_sha256_hash(data):
+    """ Generate SHA-256 hash of the EEG data """
+    data_bytes = data.tobytes()  # Convert EEG data to bytes
+    sha256_hash = hashlib.sha256(data_bytes).hexdigest()  # Generate SHA-256 hash
+    return sha256_hash
+
+# Step 4: Encrypt the EEG data using the SHA-256 hash as a key (optional)
+def encrypt_data_with_sha256_key(data, sha256_key):
+    """ Encrypt the EEG data using AES encryption with SHA-256 hash as the key """
+    key = bytes.fromhex(sha256_key)  # Convert SHA-256 hash to a 32-byte AES key
+    cipher = AES.new(key, AES.MODE_CBC)  # AES encryption in CBC mode
+    
+    # Convert data to JSON and pad to make it a multiple of the AES block size
+    json_data = json.dumps(data)
+    padded_data = pad(json_data.encode(), AES.block_size)
+    
+    encrypted_data = cipher.encrypt(padded_data)
+    return cipher.iv, encrypted_data
+
+# Step 5: Save the encrypted data as a binary file
+def save_encrypted_data(iv, encrypted_data, filename):
+    """ Save the IV and encrypted data to a binary file """
+    with open(filename, 'wb') as f:
+        f.write(iv)  # Write the IV first
+        f.write(encrypted_data)  # Then write the encrypted data
+
+# Main function to process EEG data
+def process_eeg_file(bin_file_path, output_filename):
+    """ Main processing pipeline """
+    # Load EEG data
+    eeg_data = load_eeg_data(bin_file_path)
+    
+    # Extract frequency bands (e.g., gamma, alpha, beta)
+    extracted_data = extract_waves(eeg_data)
+    
+    # Generate SHA-256 hash of the EEG data (this will be used as a key)
+    sha256_hash = generate_sha256_hash(eeg_data)
+    print(f"SHA-256 Hash: {sha256_hash}")
+    
+    # Optionally, encrypt the data using SHA-256 hash as a key
+    iv, encrypted_data = encrypt_data_with_sha256_key(extracted_data, sha256_hash)
+    
+    # Save the encrypted data as a binary file
+    save_encrypted_data(iv, encrypted_data, output_filename)
+    print(f"Encrypted EEG data saved to {output_filename}")
+
+# Example usage
+if __name__ == "__main__":
+    process_eeg_file("compressed_eeg.bin", "processed_eeg_data.bin")
