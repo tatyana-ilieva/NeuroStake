@@ -1,0 +1,76 @@
+import React, { useState, useEffect } from "react";
+import { ethers } from "ethers";
+import NeuroDataStakingABI from './NeuroDataStakingABI.json'; // import ABI
+
+const App = () => {
+    const [userAddress, setUserAddress] = useState(null);
+    const [contract, setContract] = useState(null);
+    const [provider, setProvider] = useState(null);
+    const [isConnected, setIsConnected] = useState(false);
+
+    useEffect(() => {
+        const init = async () => {
+            // Connect to user's wallet
+            if (window.ethereum) {
+                const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = web3Provider.getSigner();
+                const userAddress = await signer.getAddress();
+                setUserAddress(userAddress);
+                setIsConnected(true);
+
+                const stakingContract = new ethers.Contract(
+                    "0xYourStakingContractAddress", // Your staking contract address
+                    NeuroDataStakingABI,
+                    signer
+                );
+                setContract(stakingContract);
+                setProvider(web3Provider);
+            } else {
+                alert("Please install MetaMask to connect!");
+            }
+        };
+        init();
+    }, []);
+
+    const stakeData = async (eegData, hash) => {
+        if (contract) {
+            const tx = await contract.stakeData(eegData, hash, { value: ethers.utils.parseEther("0.1") }); // Stake with ETH
+            await tx.wait();
+            alert("Data successfully staked!");
+        }
+    };
+
+    const claimReward = async () => {
+        if (contract) {
+            const tx = await contract.claimReward();
+            await tx.wait();
+            alert("Reward claimed!");
+        }
+    };
+
+    const unstakeData = async () => {
+        if (contract) {
+            const tx = await contract.unstakeData();
+            await tx.wait();
+            alert("Data successfully unstaked!");
+        }
+    };
+
+    return (
+        <div>
+            <h1>NeuroStake: Staking EEG Data</h1>
+            {isConnected ? (
+                <div>
+                    <p>Connected Address: {userAddress}</p>
+                    <button onClick={() => stakeData("eegDataHere", "hashHere")}>Stake EEG Data</button>
+                    <button onClick={claimReward}>Claim Reward</button>
+                    <button onClick={unstakeData}>Unstake EEG Data</button>
+                </div>
+            ) : (
+                <button onClick={() => window.ethereum.request({ method: 'eth_requestAccounts' })}>Connect MetaMask</button>
+            )}
+        </div>
+    );
+};
+
+export default App;
