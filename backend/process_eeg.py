@@ -4,11 +4,11 @@ import zlib
 import hashlib
 import json
 import pandas as pd
+import h5py
 
-# Load EEG data from .mat file
-mat_data = scipy.io.loadmat("eeg_data.mat")
-eeg_signals = mat_data['data']  # Assuming 'data' contains EEG signals
-fs = 256  # Sampling frequency (modify if different)
+with h5py.File('../eeg_data.mat', 'r') as f:
+    eeg_signals = np.array(f['ans'])  # Assuming 'data' is your dataset name
+fs = 256
 
 # Function to apply a bandpass filter
 from scipy.signal import butter, lfilter
@@ -40,6 +40,9 @@ df = pd.DataFrame({
 
 # Save structured data to JSON for storage
 df.to_json("processed_eeg.json", orient="records")
+print("\n📄 JSON Content Preview:")
+json_content = df.to_json(orient="records", indent=2)  # Pretty print with indentation
+print(json_content[:500] + "..." if len(json_content) > 500 else json_content)  # Show first 500 chars
 
 # Convert EEG data to compressed bytes
 compressed_data = zlib.compress(df.to_json().encode())
