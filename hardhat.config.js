@@ -1,27 +1,12 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("dotenv").config();
 
 module.exports = {
-  solidity: {
-    version: "0.8.28",  // Change this to match OpenZeppelin version
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 200,
-      },
-    },
-  },
+  solidity: "0.8.19",
   networks: {
-    arbitrum: {
-      url: process.env.ARBITRUM_RPC_URL,
-      accounts: [process.env.PRIVATE_KEY],
-    },
-    optimism: {
-      url: process.env.OPTIMISM_RPC_URL,
-      accounts: [process.env.PRIVATE_KEY],
-    },
-    zkSync: {
-      url: process.env.ZKSYNC_RPC_URL,
-      accounts: [process.env.PRIVATE_KEY],
-    },
+    sepolia: {
+      url: `https://sepolia.infura.io/v3/${process.env.INFURA_API_KEY}`,
+      accounts: [`0x${process.env.PRIVATE_KEY}`]
+    }
   },
 };
