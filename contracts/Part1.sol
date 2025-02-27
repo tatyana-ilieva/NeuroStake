@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -113,7 +113,7 @@ contract NeuroStake {
         bytes memory signature,
         address institutionPK
     ) public pure returns (bool) {
-        bytes32 messageHash = keccak256(abi.encodePacked(eegDataHash)).toEthSignedMessageHash();
+        bytes32 messageHash = keccak256(abi.encodePacked(eegDataHash));
         return ECDSA.recover(messageHash, signature) == institutionPK;
     }
 
