@@ -4,6 +4,11 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+interface IAVSDirectory {
+    function registerAVS(address avsOperator) external;
+    function isOperatorRegistered(address operator) external view returns (bool);
+}
+
 interface IRewardsCoordinator {
     function createAVSRewardsSubmission(
         address avs,
@@ -15,13 +20,14 @@ interface IRewardsCoordinator {
 }
 
 contract NeuroStake {
-    using ECDSA for bytes32;
+    using ECDSA for bytes32; // ✅ Ensure ECDSA functions are applied to bytes32
 
     IERC20 public eigenLayerToken;
+    IAVSDirectory public avsDirectory;
     IRewardsCoordinator public rewardsCoordinator;
 
     address public owner;
-    uint256 public minStakeAmount = 1 ether; // Minimum stake amount required
+    uint256 public minStakeAmount = 1 ether;
 
     struct EEGData {
         bytes32 eegDataHash;
@@ -38,25 +44,37 @@ contract NeuroStake {
     event Staked(address indexed institution, uint256 amount);
     event MetadataStored(bytes32 indexed eegDataHash, string metadata);
     event VerifiedSignature(bytes32 indexed eegDataHash, address indexed institution);
+    event FraudDetected(address indexed institution, bytes32 eegDataHash, uint256 slashedAmount);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not authorized");
         _;
     }
 
-    constructor(address _eigenLayerToken, address _rewardsCoordinator) {
+    modifier onlyRegisteredOperator() {
+        require(avsDirectory.isOperatorRegistered(msg.sender), "Operator not registered in AVS");
+        _;
+    }
+
+    constructor(
+        address _eigenLayerToken,
+        address _avsDirectory,
+        address _rewardsCoordinator
+    ) {
         eigenLayerToken = IERC20(_eigenLayerToken);
+        avsDirectory = IAVSDirectory(_avsDirectory);
         rewardsCoordinator = IRewardsCoordinator(_rewardsCoordinator);
         owner = msg.sender;
     }
 
-    /**
-     * @dev Registers EEG data and verifies its authenticity
-     */
-    function registerEEGData(bytes32 eegDataHash, string memory metadata, bytes memory signature) external {
+    function registerAVS() external {
+        require(!avsDirectory.isOperatorRegistered(msg.sender), "Already registered");
+        avsDirectory.registerAVS(msg.sender);
+    }
+
+    function registerEEGData(bytes32 eegDataHash, string memory metadata, bytes memory signature) external onlyRegisteredOperator {
         require(eegRecords[eegDataHash].institution == address(0), "EEG data already registered");
-        
-        // Verify the signature to ensure authenticity
+
         require(verifyInstitutionSignature(eegDataHash, signature, msg.sender), "Invalid signature");
 
         eegRecords[eegDataHash] = EEGData({
@@ -70,10 +88,7 @@ contract NeuroStake {
         emit EEGDataRegistered(msg.sender, eegDataHash, metadata);
     }
 
-    /**
-     * @dev Allows institutions to stake EigenLayer tokens
-     */
-    function stakeEigenLayerTokens(uint256 amount) external {
+    function stakeEigenLayerTokens(uint256 amount) external onlyRegisteredOperator {
         require(amount >= minStakeAmount, "Stake amount too low");
         require(eegRecords[keccak256(abi.encodePacked(msg.sender))].institution == msg.sender, "Institution not registered");
 
@@ -81,15 +96,11 @@ contract NeuroStake {
         stakes[msg.sender] += amount;
         eegRecords[keccak256(abi.encodePacked(msg.sender))].stakeAmount = amount;
 
-        // Notify EigenLayer's RewardsCoordinator
         rewardsCoordinator.createAVSRewardsSubmission(address(this), msg.sender, amount);
 
         emit Staked(msg.sender, amount);
     }
 
-    /**
-     * @dev Stores EEG metadata on-chain
-     */
     function storeEEGMetadata(bytes32 eegDataHash, string memory metadata) external {
         require(eegRecords[eegDataHash].institution == msg.sender, "Unauthorized");
 
@@ -97,11 +108,25 @@ contract NeuroStake {
         emit MetadataStored(eegDataHash, metadata);
     }
 
-    /**
-     * @dev Verifies an institution's signature
-     */
-    function verifyInstitutionSignature(bytes32 eegDataHash, bytes memory signature, address institutionPK) public pure returns (bool) {
-        bytes32 messageHash = keccak256(abi.encodePacked(eegDataHash));
-        return messageHash.toEthSignedMessageHash().recover(signature) == institutionPK;
+    function verifyInstitutionSignature(
+        bytes32 eegDataHash,
+        bytes memory signature,
+        address institutionPK
+    ) public pure returns (bool) {
+        bytes32 messageHash = keccak256(abi.encodePacked(eegDataHash)).toEthSignedMessageHash();
+        return ECDSA.recover(messageHash, signature) == institutionPK;
+    }
+
+    function slashStake(bytes32 eegDataHash, uint256 penaltyAmount) external onlyOwner {
+        address institution = eegRecords[eegDataHash].institution;
+        require(institution != address(0), "EEG data not found");
+
+        uint256 stakedAmount = stakes[institution];
+        require(stakedAmount >= penaltyAmount, "Not enough stake to slash");
+
+        stakes[institution] -= penaltyAmount;
+        rewardsCoordinator.slashStake(institution, penaltyAmount);
+
+        emit FraudDetected(institution, eegDataHash, penaltyAmount);
     }
 }
