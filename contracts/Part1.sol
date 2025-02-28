@@ -20,7 +20,7 @@ interface IRewardsCoordinator {
 }
 
 contract NeuroStake {
-    using ECDSA for bytes32; // ✅ Ensure ECDSA functions are applied to bytes32
+    using ECDSA for bytes32;
 
     IERC20 public eigenLayerToken;
     IAVSDirectory public avsDirectory;
@@ -45,6 +45,8 @@ contract NeuroStake {
     event MetadataStored(bytes32 indexed eegDataHash, string metadata);
     event VerifiedSignature(bytes32 indexed eegDataHash, address indexed institution);
     event FraudDetected(address indexed institution, bytes32 eegDataHash, uint256 slashedAmount);
+    event Received(address sender, uint256 amount);
+    event Withdrawn(address indexed owner, uint256 amount);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not authorized");
@@ -56,11 +58,12 @@ contract NeuroStake {
         _;
     }
 
+    /// @notice Constructor is now payable, allowing ETH to be sent on deployment
     constructor(
         address _eigenLayerToken,
         address _avsDirectory,
         address _rewardsCoordinator
-    ) {
+    ) payable {
         eigenLayerToken = IERC20(_eigenLayerToken);
         avsDirectory = IAVSDirectory(_avsDirectory);
         rewardsCoordinator = IRewardsCoordinator(_rewardsCoordinator);
@@ -74,7 +77,6 @@ contract NeuroStake {
 
     function registerEEGData(bytes32 eegDataHash, string memory metadata, bytes memory signature) external onlyRegisteredOperator {
         require(eegRecords[eegDataHash].institution == address(0), "EEG data already registered");
-
         require(verifyInstitutionSignature(eegDataHash, signature, msg.sender), "Invalid signature");
 
         eegRecords[eegDataHash] = EEGData({
@@ -128,5 +130,17 @@ contract NeuroStake {
         rewardsCoordinator.slashStake(institution, penaltyAmount);
 
         emit FraudDetected(institution, eegDataHash, penaltyAmount);
+    }
+
+    /// @notice Allows contract to receive ETH
+    receive() external payable {
+        emit Received(msg.sender, msg.value);
+    }
+
+    /// @notice Owner can withdraw ETH from contract
+    function withdrawETH(uint256 amount) external onlyOwner {
+        require(address(this).balance >= amount, "Insufficient balance");
+        payable(owner).transfer(amount);
+        emit Withdrawn(owner, amount);
     }
 }

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroStake dApp</title>
+    <style>
+        /* Global Styles */
+        body {
+            font-family: 'Inter', Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+            padding: 50px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        /* Main Container */
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
+            display: inline-block;
+            min-width: 350px;
+        }
+
+        /* Buttons */
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: background 0.3s ease-in-out;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Input Fields */
+        input, select {
+            width: 90%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+        }
+
+        /* Token Selection Section */
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            margin-top: 20px;
+            text-align: left;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .card label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        .text-secondary {
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>NeuroStake dApp</h1>
+    <div class="container">
+        <button id="connectWallet">Connect Wallet</button>
+        <button id="stakeTokens">Stake Tokens</button>
+    </div>
+
+    <div class="card">
+        <label for="selectToken">Select Token</label>
+        <select id="selectToken">
+            <option value="">Select Token</option>
+            <option value="0xdac17f958d2ee523a2206206994597c13d831ec7">USDT</option>
+            <option value="0x6b175474e89094c44da98b954eedeac495271d0f">DAI</option>
+            <option value="0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48">USDC</option>
+            <option value="0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2">MKR</option>
+        </select>
+
+        <label for="sendTo">Recipient Address</label>
+        <input type="text" id="sendTo" placeholder="0x... or ENS name">
+
+        <label for="amount">Amount</label>
+        <input type="text" id="amount" placeholder="Enter amount">
+
+        <button onclick="airdrop()">Airdrop</button>
+        <button onclick="sendTokens()">Send</button>
+
+        <div class="text-secondary" id="resolvedAddress"></div>
+        <div class="text-secondary" id="receiverBalance"></div>
+        <div class="text-secondary" id="senderBalance"></div>
+    </div>
+
+    <!-- Load ethers.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.2/ethers.umd.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
