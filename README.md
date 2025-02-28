@@ -10,11 +10,11 @@ For the first time, **human EEG data** is being recorded, secured, and **preserv
 
 ## **🚀 A Market for the Mind**  
 
-Today, **research institutions are the largest EEG data collectors**. Their datasets hold the **key to neurology, cognitive science, and AI**, but a fundamental problem remains:  
+Today, **research institutions are the largest EEG data collectors**. Their datasets hold the **key to neurology, cognitive science, and AI
 
-> **There is no way to verify that an AI model was trained on the correct EEG dataset.**  
+**But an important problem is, **many researchers and AI companies want to access these data.**   
 
-🔹 **NeuroStake changes this.** Instead of selling EEG data directly, institutions **register and stake** their datasets on-chain, proving authenticity while keeping the **raw data private**.  
+🔹 **NeuroStake changes this.** Instead of selling EEG data directly, institutions **register and stake** their datasets on-chain.  
 
 🔹 **AI companies, researchers, and individuals can purchase access**, but instead of downloading the data, they **submit AI models remotely**. The institution runs the computation **locally** and returns only the results—verified with **Zero-Knowledge Proofs (ZKPs)** to prove that the analysis was performed on the correct, unaltered EEG data.  
 
@@ -29,7 +29,7 @@ Today, **research institutions are the largest EEG data collectors**. Their data
 
 ---
 
-## **⚡ Computation as a Service: A New Paradigm for AI Training**  
+## **⚡ Computation as a Service**  
 
 Unlike Bitcoin, where ownership is **exclusive**, EEG data is **non-exclusive**—it can be used by multiple researchers for different models.  
 
@@ -105,20 +105,12 @@ This removes the need for **trust**—AI researchers can verify that their model
 
 ## **📜 Deployment Guide**  
 
-**Clone the repository & install dependencies:**  
 ```bash
 git clone https://github.com/Lindsey-cyber/NeuroStake.git
 cd NeuroStake
 npm install
-
-**Deploy smart contracts:**
-```bash
-npx hardhat run scripts/deploy.js --network goerli
-```  
-
-**Verify the contract: ** 
-```bash
-npx hardhat verify --network goerli <contract_address>
+npx hardhat run scripts/deploy.js --network holesky
+npx hardhat verify --network holesky <contract_address>
 ```  
 
 ---
