@@ -1,84 +1,53 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 interface IGaiaVerifier {
     function verifyZKProof(bytes32 eegDataHash, uint256 result, bytes memory zkProof) external view returns (bool);
 }
 
-contract NeuroStake {
-    IERC20 public eigenLayerToken;
-    IGaiaVerifier public gaiaVerifier;
-
-    address public owner;
-
+contract ComputationRegistry is Ownable {
     struct Computation {
-        bytes32 eegDataHash;
         uint256 result;
         bytes zkProof;
         bool verified;
     }
 
-    mapping(address => Computation) public computations;
+    mapping(bytes32 => Computation) public computations;
+    IGaiaVerifier public gaiaVerifier;
 
-    event ComputationExecuted(address indexed institution, bytes32 indexed eegDataHash, uint256 result);
-    event ZKProofGenerated(address indexed institution, bytes32 indexed eegDataHash, bytes zkProof);
-    event ComputationVerified(address indexed institution, bytes32 indexed eegDataHash, bool success);
+    event ComputationResultStored(bytes32 indexed eegDataHash, uint256 result, bytes zkProof);
+    event ComputationVerified(bytes32 indexed eegDataHash, bool success);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not authorized");
-        _;
-    }
-
-    constructor(address _eigenLayerToken, address _gaiaVerifier) {
-        eigenLayerToken = IERC20(_eigenLayerToken);
+    constructor(address _gaiaVerifier) Ownable(msg.sender) {
         gaiaVerifier = IGaiaVerifier(_gaiaVerifier);
-        owner = msg.sender;
     }
 
-    /**
-     * @dev Runs a simple EEG computation (average signal) and generates a Zero-Knowledge Proof.
-     */
-    function runComputation(bytes32 eegDataHash) external returns (uint256 result, bytes memory zkProof) {
-        require(computations[msg.sender].eegDataHash == bytes32(0), "Computation already exists");
+    function storeComputation(bytes32 eegDataHash, uint256 result, bytes memory zkProof) external onlyOwner {
+        require(computations[eegDataHash].result == 0, "Computation already stored.");
 
-        // Simulate a basic EEG computation (average calculation)
-        result = uint256(keccak256(abi.encodePacked(eegDataHash, msg.sender))) % 1000;
-
-        // Generate a ZK Proof using Gaia
-        zkProof = generateZKProof(eegDataHash, result);
-
-        computations[msg.sender] = Computation({
-            eegDataHash: eegDataHash,
+        computations[eegDataHash] = Computation({
             result: result,
             zkProof: zkProof,
             verified: false
         });
 
-        emit ComputationExecuted(msg.sender, eegDataHash, result);
-        emit ZKProofGenerated(msg.sender, eegDataHash, zkProof);
-
-        return (result, zkProof);
+        emit ComputationResultStored(eegDataHash, result, zkProof);
     }
 
-    /**
-     * @dev Generates a Zero-Knowledge Proof using Gaia AVS.
-     */
-    function generateZKProof(bytes32 eegDataHash, uint256 result) internal view returns (bytes memory) {
-        // Simulating ZK Proof creation
-        bytes memory zkProof = abi.encodePacked(eegDataHash, result, msg.sender);
-        return zkProof;
-    }
+    function verifyComputation(bytes32 eegDataHash) external returns (bool) {
+        require(computations[eegDataHash].result != 0, "Computation not found.");
+        require(computations[eegDataHash].zkProof.length > 0, "ZK Proof not available.");
 
-    /**
-     * @dev Verifies computation using Gaia AVS.
-     */
-    function verifyComputation(bytes32 eegDataHash, uint256 result, bytes memory zkProof) external returns (bool) {
-        bool success = gaiaVerifier.verifyZKProof(eegDataHash, result, zkProof);
-        computations[msg.sender].verified = success;
+        bool success = gaiaVerifier.verifyZKProof(
+            eegDataHash,
+            computations[eegDataHash].result,
+            computations[eegDataHash].zkProof
+        );
 
-        emit ComputationVerified(msg.sender, eegDataHash, success);
+        computations[eegDataHash].verified = success;
+        emit ComputationVerified(eegDataHash, success);
         return success;
     }
 }

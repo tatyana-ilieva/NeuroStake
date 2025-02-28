@@ -2,90 +2,104 @@
 pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract NeuroStake {
+interface IGaiaVerifier {
+    function verifyZKProof(bytes32 eegDataHash, uint256 result, bytes memory zkProof) external view returns (bool);
+}
+
+interface IEigenLayerStaking {
+    function slash(address institution, uint256 amount) external;
+    function getStake(address institution) external view returns (uint256);
+    function reward(address institution, uint256 amount) external;
+}
+
+contract NeuroStake is Ownable(address(this)) {
+    struct Computation {
+        uint256 result;
+        bytes zkProof;
+        bool verified;
+    }
+
+    mapping(bytes32 => Computation) public computations;
+    mapping(address => uint256) public buyerLockedFunds;
+    mapping(address => bool) public slashedInstitutions;
+
     IERC20 public eigenLayerToken;
+    IGaiaVerifier public gaiaVerifier;
+    IEigenLayerStaking public eigenLayerStaking;
 
-    address public owner;
-    uint256 public verificationTimeLimit = 3 days; // Time limit before refunding buyer if verification fails
+    event StakeSlashed(address indexed institution, uint256 amount);
+    event FraudReported(bytes32 indexed eegDataHash, address indexed institution, bool fraudConfirmed);
+    event InstitutionSlashed(address indexed institution);
+    event RewardsDistributed(address indexed institution, uint256 amount);
+    event PaymentReleased(address indexed buyer, address indexed institution, uint256 amount);
+    event EigenLayerRewardComputed(address indexed institution, uint256 reward);
 
-    struct ComputeRequest {
-        bytes32 eegDataHash;
-        address buyer;
-        uint256 amount;
-        bool isPaid;
-        bool isVerified;
-        uint256 timestamp;
-    }
-
-    mapping(address => ComputeRequest) public computeRequests;
-    mapping(bytes32 => uint256) public lockedPayments;
-
-    event ComputeAccessPurchased(address indexed buyer, bytes32 indexed eegDataHash, uint256 amount);
-    event PaymentLocked(address indexed buyer, uint256 amount);
-    event PaymentReleased(address indexed buyer, uint256 amount);
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not authorized");
-        _;
-    }
-
-    constructor(address _eigenLayerToken) {
+    constructor(address _eigenLayerToken, address _gaiaVerifier, address _eigenLayerStaking) {
         eigenLayerToken = IERC20(_eigenLayerToken);
-        owner = msg.sender;
+        gaiaVerifier = IGaiaVerifier(_gaiaVerifier);
+        eigenLayerStaking = IEigenLayerStaking(_eigenLayerStaking);
     }
 
-    /**
-     * @dev Allows a buyer to pay for EEG computation
-     */
-    function purchaseComputeAccess(bytes32 eegDataHash, uint256 amount, address buyer) external {
-        require(amount > 0, "Payment must be greater than zero");
-        require(computeRequests[buyer].amount == 0, "Existing compute request in process");
+    function reportFraud(bytes32 eegDataHash, address institution) external {
+        require(computations[eegDataHash].result != 0, "Computation does not exist.");
+        require(!slashedInstitutions[institution], "Institution is already slashed.");
 
-        // Transfer EigenLayer tokens from buyer to contract
-        eigenLayerToken.transferFrom(buyer, address(this), amount);
+        bool fraudDetected = !gaiaVerifier.verifyZKProof(
+            eegDataHash,
+            computations[eegDataHash].result,
+            computations[eegDataHash].zkProof
+        );
 
-        computeRequests[buyer] = ComputeRequest({
-            eegDataHash: eegDataHash,
-            buyer: buyer,
-            amount: amount,
-            isPaid: true,
-            isVerified: false,
-            timestamp: block.timestamp
-        });
+        emit FraudReported(eegDataHash, institution, fraudDetected);
 
-        emit ComputeAccessPurchased(buyer, eegDataHash, amount);
+        if (fraudDetected) {
+            uint256 penaltyAmount = eigenLayerStaking.getStake(institution) / 2; // Slash 50% of stake
+            slashStake(institution, penaltyAmount);
+        }
     }
 
-    /**
-     * @dev Locks buyer's payment until computation verification is complete
-     */
-    function lockPaymentUntilVerification(address buyer, uint256 amount) external {
-        require(computeRequests[buyer].isPaid, "Payment not made");
-        require(lockedPayments[computeRequests[buyer].eegDataHash] == 0, "Already locked");
+    function slashStake(address institution, uint256 penaltyAmount) internal {
+        require(!slashedInstitutions[institution], "Institution already slashed.");
+        require(eigenLayerStaking.getStake(institution) >= penaltyAmount, "Not enough stake to slash.");
 
-        // Lock funds
-        lockedPayments[computeRequests[buyer].eegDataHash] = amount;
+        eigenLayerStaking.slash(institution, penaltyAmount);
+        slashedInstitutions[institution] = true;
 
-        emit PaymentLocked(buyer, amount);
+        emit StakeSlashed(institution, penaltyAmount);
+        emit InstitutionSlashed(institution);
     }
 
-    /**
-     * @dev Releases payment after successful computation verification
-     */
-    function releasePayment(address buyer) external onlyOwner {
-        require(computeRequests[buyer].isVerified, "Computation not verified");
-        
-        uint256 amount = computeRequests[buyer].amount;
-        require(amount > 0, "No locked payment to release");
+    function distributeRewards(address institution, uint256 amount) external onlyOwner {
+        require(amount > 0, "Reward amount must be greater than zero.");
+        require(eigenLayerToken.transfer(institution, amount), "Reward transfer failed.");
+        emit RewardsDistributed(institution, amount);
+    }
 
-        // Transfer funds to the institution
-        eigenLayerToken.transfer(computeRequests[buyer].buyer, amount);
+    function lockPayment(address buyer, uint256 amount) external {
+        require(eigenLayerToken.transferFrom(buyer, address(this), amount), "Payment lock failed.");
+        buyerLockedFunds[buyer] += amount;
+    }
 
-        // Clean up records
-        delete computeRequests[buyer];
-        delete lockedPayments[computeRequests[buyer].eegDataHash];
+    function releasePayment(address buyer, address institution, uint256 amount) external onlyOwner {
+        require(buyerLockedFunds[buyer] >= amount, "Insufficient locked funds.");
+        require(eigenLayerToken.transfer(institution, amount), "Payment transfer failed.");
 
-        emit PaymentReleased(buyer, amount);
+        buyerLockedFunds[buyer] -= amount;
+
+        emit PaymentReleased(buyer, institution, amount);
+    }
+
+    function computeEigenLayerReward(address institution) external {
+        require(eigenLayerStaking.getStake(institution) > 0, "Institution has no stake.");
+
+        uint256 baseReward = 10 * 1e18; // Example: 10 tokens per verified computation
+        uint256 stakeMultiplier = eigenLayerStaking.getStake(institution) / 1e18;
+        uint256 finalReward = baseReward * stakeMultiplier;
+
+        eigenLayerStaking.reward(institution, finalReward);
+
+        emit EigenLayerRewardComputed(institution, finalReward);
     }
 }
