@@ -10,7 +10,7 @@ For the first time, **human EEG data** is being recorded, secured, and **preserv
 
 ## **🚀 A Market for the Mind**  
 
-Today, **research institutions are the largest EEG data collectors**. Their datasets hold the **key to neurology, cognitive science, and AI
+Today, **research institutions are the largest EEG data collectors**. Their datasets hold the **key to neurology, cognitive science, and AI.**
 
 💡 But an important problem is, **many researchers and AI companies want to access these data.**   
 
