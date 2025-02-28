@@ -12,7 +12,7 @@ For the first time, **human EEG data** is being recorded, secured, and **preserv
 
 Today, **research institutions are the largest EEG data collectors**. Their datasets hold the **key to neurology, cognitive science, and AI
 
-💡 **But an important problem is, **many researchers and AI companies want to access these data.**   
+💡 But an important problem is, **many researchers and AI companies want to access these data.**   
 
 🔹 **NeuroStake changes this.** Instead of selling EEG data directly, institutions **register and stake** their datasets on-chain.  
 
