@@ -110,7 +110,6 @@ git clone https://github.com/Lindsey-cyber/NeuroStake.git
 cd NeuroStake
 npm install
 npx hardhat run scripts/deploy.js --network holesky
-npx hardhat verify --network holesky <contract_address>
 ```  
 
 ---
